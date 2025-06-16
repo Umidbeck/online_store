@@ -1,0 +1,132 @@
+{% extends 'base.html' %} {# Inherit from your base template #}
+{% load static %}         {# Load static files like placeholder image #}
+
+{% block title %}My Favorites{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="display-4 fw-bold text-center mb-5 text-dark">
+        <i class="bi bi-heart-fill text-danger me-3"></i> My Favorite Products
+    </h1>
+
+    {% if favorites %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="favorite-list-container">
+            {% for favorite_item in favorites %}
+                <div class="col" id="favorite-item-{{ favorite_item.id }}"> {# Unique ID for HTMX removal #}
+                    <div class="card h-100 shadow-sm border-0 rounded-3 overflow-hidden product-card-hover"> {# Added hover effect #}
+                        <div class="row g-0">
+                            {# Product Image #}
+                            <div class="col-md-5 d-flex align-items-center justify-content-center bg-light p-3">
+                                <img src="{{ favorite_item.product.image.url|default:'{% static "images/placeholder.png" %}' }}"
+                                     alt="{{ favorite_item.product.name }}"
+                                     class="img-fluid rounded-2"
+                                     style="max-height: 180px; object-fit: contain;">
+                                {% if not favorite_item.product.image %}
+                                    <div class="position-absolute text-muted text-center" style="opacity: 0.5;">
+                                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            {# Product Details #}
+                            <div class="col-md-7">
+                                <div class="card-body d-flex flex-column h-100">
+                                    <h5 class="card-title fw-bold text-dark mb-1 text-truncate"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="{{ favorite_item.product.name }}">
+                                        {{ favorite_item.product.name }}
+                                    </h5>
+                                    <p class="card-text text-muted small mb-2">
+                                        <i class="bi bi-tag me-1"></i> Category: {{ favorite_item.product.category.name }}
+                                    </p>
+                                    <p class="card-text text-success fs-5 fw-bold mb-3">
+                                        ${{ favorite_item.product.price|floatformat:2 }}
+                                    </p>
+
+                                    <div class="d-flex align-items-center mb-3">
+                                        {% if favorite_item.product.stock > 0 %}
+                                            <span class="badge bg-success me-2">
+                                                <i class="bi bi-check-circle-fill me-1"></i> In Stock: {{ favorite_item.product.stock }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger me-2">
+                                                <i class="bi bi-x-circle-fill me-1"></i> Out of Stock
+                                            </span>
+                                        {% endif %}
+                                        <small class="text-muted ms-auto">Added: {{ favorite_item.added_at|date:"M d, Y" }}</small>
+                                    </div>
+
+                                    <div class="mt-auto d-grid gap-2"> {# Push buttons to the bottom #}
+                                        {# View Details Button #}
+                                        <a href="{% url 'product_detail' favorite_item.product.id %}"
+                                           class="btn btn-outline-primary btn-sm rounded-pill">
+                                            <i class="bi bi-info-circle me-1"></i> View Details
+                                        </a>
+
+                                        {# Add to Cart Button #}
+                                        {% if favorite_item.product.stock > 0 %}
+                                            <button hx-post="{% url 'add_to_cart' favorite_item.product.id %}"
+                                                    hx-target="#cart-count"
+                                                    hx-swap="outerHTML"
+                                                    class="btn btn-success btn-sm rounded-pill animate__animated animate__pulse animate__infinite animate__delay-1s">
+                                                <i class="bi bi-bag-plus me-1"></i> Add to Cart
+                                            </button>
+                                        {% else %}
+                                            <button class="btn btn-secondary btn-sm rounded-pill" disabled>
+                                                <i class="bi bi-x-octagon me-1"></i> Not Available
+                                            </button>
+                                        {% endif %}
+
+                                        {# Remove from Favorites Button (using HTMX) #}
+                                        <button hx-delete="{% url 'remove_from_favorites' favorite_item.id %}"
+                                                hx-confirm="Are you sure you want to remove this from your favorites?"
+                                                hx-target="#favorite-item-{{ favorite_item.id }}"
+                                                hx-swap="outerHTML swap:.5s" {# Fade out effect #}
+                                                class="btn btn-outline-danger btn-sm rounded-pill">
+                                            <i class="bi bi-trash-fill me-1"></i> Remove
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center py-4 rounded-3 shadow-sm">
+            <h4 class="alert-heading"><i class="bi bi-info-circle me-2"></i> Your Favorites List is Empty!</h4>
+            <p>It looks like you haven't added any products to your favorites yet.</p>
+            <hr>
+            <p class="mb-0">Explore our amazing products and add your favorites to easily find them later.</p>
+            <a href="" class="btn btn-primary mt-3">
+                <i class="bi bi-shop me-2"></i> Start Shopping
+            </a>
+        </div>
+    {% endif %}
+
+</div>
+
+{# Optional: Initialize Bootstrap Tooltips if you use them #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+  })
+});
+</script>
+
+{# Custom CSS for card hover effect (add this to your main static/css/style.css or <style> block) #}
+{% comment %}
+<style>
+    .product-card-hover {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .product-card-hover:hover {
+        transform: translateY(-5px); /* Lifts the card slightly */
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important; /* Stronger shadow on hover */
+    }
+</style>
+{% endcomment %}
+
+{% endblock %}
