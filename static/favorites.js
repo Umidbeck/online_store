@@ -19,14 +19,100 @@ document.addEventListener('DOMContentLoaded', function () {
           document.body.appendChild(toastContainer);
           const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
           toast.show();
-          setTimeout(() => toastContainer.remove(), 2500); // 2.5 soniya keyin o‘chirish
+          setTimeout(() => toastContainer.remove(), 2500);
       }
 
-      // Remove favorite via AJAX
-      const removeButtons = document.querySelectorAll('.remove-favorite');
-      removeButtons.forEach(button => {
-          button.addEventListener('click', function () {
-              const favoriteId = this.getAttribute('data-favorite-id');
+      // Load cart data
+      function loadCart() {
+          const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+          const csrfToken = csrfTokenElement ? csrfTokenElement.value : '';
+
+          if (!csrfToken) {
+              console.error('CSRF token not found!');
+              return;
+          }
+
+          fetch('/cart/', {
+              method: 'GET',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': csrfToken
+              }
+          })
+          .then(response => {
+              if (!response.ok) {
+                  return response.text().then(text => {
+                      console.log('Server response:', text);
+                      throw new Error(`Network response was not ok ${response.status}: ${text || 'No detail'}`);
+                  });
+              }
+              return response.json();
+          })
+          .then(data => {
+              if (data.success) {
+                  const cartItems = data.cart.items;
+                  const totalPrice = Number(data.cart.total) || 0;
+                  const cartList = document.querySelector('.list-group.mb-3');
+                  const badge = document.querySelector('.badge.bg-primary');
+                  const total = document.getElementById('cart-total');
+                  const itemCount = document.getElementById('cart-item-count');
+
+                  badge.textContent = cartItems.length;
+                  cartList.innerHTML = '';
+
+                  if (cartItems.length > 0) {
+                      cartItems.forEach(item => {
+                          const li = document.createElement('li');
+                          li.className = 'list-group-item d-flex justify-content-between lh-sm';
+                          li.innerHTML = `
+                              <div>
+                                  <h6 class="my-0">${item.product}</h6>
+                                  <small class="text-body-secondary">Brief description</small>
+                              </div>
+                              <div>
+                                  <span class="text-body-secondary">$${item.price}</span>
+                                  <button class="btn btn-danger btn-sm remove-from-cart" data-item-id="${item.id}">Remove</button>
+                              </div>
+                          `;
+                          cartList.appendChild(li);
+                      });
+                      if (total) {
+                          total.textContent = `$${totalPrice.toFixed(2)}`;
+                      }
+                      if (itemCount) {
+                          itemCount.textContent = cartItems.length;
+                      }
+                  } else {
+                      cartList.innerHTML = '<li class="list-group-item text-center text-muted">Your cart is empty!</li>';
+                      if (total) {
+                          total.textContent = '$0.00';
+                      }
+                      if (itemCount) {
+                          itemCount.textContent = '0';
+                      }
+                  }
+              }
+          })
+          .catch(error => {
+              console.error('Xatolik:', error.message);
+              showToast('Savatni yuklashda xatolik yuz berdi: ' + error.message);
+          });
+      }
+
+      // Add to Cart from home page with quantity
+      const addToCartButtons = document.querySelectorAll('.add-to-cart');
+      addToCartButtons.forEach(button => {
+          button.addEventListener('click', function (e) {
+              e.preventDefault();
+              const productId = this.getAttribute('data-product-id');
+              const quantityInput = this.closest('.row').querySelector('input[name="quantity"]');
+              const quantity = quantityInput ? parseInt(quantityInput.value) : 1;
+
+              if (quantity < 1) {
+                  showToast('Miqdor 1 dan kichik bo‘lmasligi kerak!');
+                  return;
+              }
+
               const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
               const csrfToken = csrfTokenElement ? csrfTokenElement.value : '';
 
@@ -35,7 +121,55 @@ document.addEventListener('DOMContentLoaded', function () {
                   return;
               }
 
-              fetch(`/favorites/remove-from-favorites/${favoriteId}/`, {
+              fetch('/cart/add/', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': csrfToken
+                  },
+                  body: JSON.stringify({ product_id: productId, quantity: quantity })
+              })
+              .then(response => {
+                  if (!response.ok) {
+                      return response.text().then(text => {
+                          console.log('Server response:', text);
+                          throw new Error(`Network response was not ok ${response.status}: ${text || 'No detail'}`);
+                      });
+                  }
+                  return response.json();
+              })
+              .then(data => {
+                  if (data.success) {
+                      showToast('Mahsulot savatga qo‘shildi');
+                      loadCart();
+                      if (quantityInput) quantityInput.value = 1;
+                  } else if (data.action === 'exists') {
+                      showToast(data.message);
+                  } else {
+                      showToast('Xatolik: ' + (data.error || 'Noma’lum xatolik'));
+                  }
+              })
+              .catch(error => {
+                  console.error('Xatolik:', error.message);
+                  showToast('So‘rovda xatolik yuz berdi: ' + error.message);
+              });
+          });
+      });
+
+      // Remove from Cart
+      document.addEventListener('click', function (e) {
+          if (e.target.classList.contains('remove-from-cart')) {
+              e.preventDefault();
+              const itemId = e.target.getAttribute('data-item-id');
+              const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+              const csrfToken = csrfTokenElement ? csrfTokenElement.value : '';
+
+              if (!csrfToken) {
+                  console.error('CSRF token not found!');
+                  return;
+              }
+
+              fetch(`/cart/remove/${itemId}/`, {
                   method: 'DELETE',
                   headers: {
                       'Content-Type': 'application/json',
@@ -44,75 +178,32 @@ document.addEventListener('DOMContentLoaded', function () {
               })
               .then(response => {
                   if (!response.ok) {
-                      throw new Error('Network response was not ok ' + response.status);
+                      return response.text().then(text => {
+                          console.log('Server response:', text);
+                          throw new Error(`Network response was not ok ${response.status}: ${text || 'No detail'}`);
+                      });
                   }
                   return response.json();
               })
               .then(data => {
                   if (data.success) {
-                      const favoriteItem = document.getElementById(`favorite-item-${favoriteId}`);
-                      if (favoriteItem) {
-                          favoriteItem.style.opacity = '0';
-                          setTimeout(() => {
-                              favoriteItem.remove(); // Faqat DOM’dan o‘chirish
-                          }, 500);
-                      }
-                      if (data.action === 'removed') {
-                          showToast('Mahsulot sevimlilardan o‘chirildi');
-                      }
+                      showToast('Mahsulot savatdan o‘chirildi');
+                      loadCart();
+                  } else {
+                      showToast('Xatolik: ' + (data.error || 'Noma’lum xatolik'));
                   }
               })
               .catch(error => {
-                  console.error('Xatolik:', error);
+                  console.error('Xatolik:', error.message);
+                  showToast('O‘chirishda xatolik yuz berdi: ' + error.message);
               });
-          });
+          }
       });
 
-      // Add to Favorites from home page
-      const addToFavoriteButtons = document.querySelectorAll('.add-to-favorite');
-      addToFavoriteButtons.forEach(button => {
-          button.addEventListener('click', function () {
-              const productId = this.getAttribute('data-product-id');
-              const csrfTokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
-              const csrfToken = csrfTokenElement ? csrfTokenElement.value : '';
+      // Initial load
+      loadCart();
 
-              if (!csrfToken) {
-                  console.error('CSRF token not found!');
-                  return;
-              }
-
-              fetch('/favorites/add-to-favorite/', {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json',
-                      'X-CSRFToken': csrfToken
-                  },
-                  body: JSON.stringify({ product_id: productId })
-              })
-              .then(response => {
-                  if (!response.ok) {
-                      throw new Error('Network response was not ok ' + response.status);
-                  }
-                  return response.json();
-              })
-              .then(data => {
-                  if (data.success) {
-                      if (data.action === 'added') {
-                          showToast('Mahsulot sevimlilarga qo‘shildi');
-                          button.classList.remove('btn-outline-primary');
-                          button.classList.add('btn-danger');
-                          // button.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
-                      } else if (data.action === 'removed') {
-                          showToast('Mahsulot sevimlilardan o‘chirildi');
-                          button.classList.remove('btn-danger');
-                          button.classList.add('btn-outline-primary');
-                          // button.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
-                      }
-                  }
-              })
-              .catch(error => {
-                  console.error('Xatolik:', error);
-              });
-          });
-      });
+      // Refresh cart when offcanvas opens
+      const offcanvasElement = document.getElementById('offcanvasCart');
+      offcanvasElement.addEventListener('show.bs.offcanvas', loadCart);
   });
