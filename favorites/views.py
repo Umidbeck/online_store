@@ -9,10 +9,7 @@ from .models import Favorite, Product
 import json
 
 
-
 class AddToFavoriteView(LoginRequiredMixin, View):
-    login_url = '/accounts/login/'
-
     def post(self, request, *args, **kwargs):
         try:
             data = json.loads(request.body.decode('utf-8'))
@@ -22,16 +19,11 @@ class AddToFavoriteView(LoginRequiredMixin, View):
 
             product = Product.objects.get(id=product_id)
             favorite, created = Favorite.objects.get_or_create(user=request.user, product=product)
-
-            if created:
-                return JsonResponse({'success': True, 'action': 'added', 'message': ''})
-            else:
-                favorite.delete()
-                return JsonResponse({'success': True, 'action': 'removed', 'message': ''})
+            if not created:
+                return JsonResponse({'success': False, 'error': 'Already in favorites!'}, status=400)
+            return JsonResponse({'success': True})
         except Product.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Mahsulot topilmadi!'}, status=404)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': 'Noto‘g‘ri JSON format!'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Product not found!'}, status=404)
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
@@ -45,21 +37,39 @@ class FavoritesView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class RemoveFromFavoritesView(LoginRequiredMixin, View):
-    """
-    Remove a product from the user's favorites list via DELETE request.
-    CSRF protection is enabled; ensure tokens are sent via HTMX or AJAX.
-    """
-    def _remove_favorite(self, pk):
-        """Helper method to handle the removal logic."""
+class RemoveFavoriteByIdView(LoginRequiredMixin, View):
+    def delete(self, request, favorite_id, *args, **kwargs):
         try:
-            favorite = Favorite.objects.get(id=pk, user=self.request.user)
+            favorite = Favorite.objects.get(id=favorite_id, user=request.user)
             favorite.delete()
-            return {'success': True, 'action': 'removed', 'message': ''}
+            return JsonResponse({'success': True})
         except Favorite.DoesNotExist:
-            return {'success': False, 'error': 'Mahsulot topilmadi!', 'status': 404}
+            return JsonResponse({'success': False, 'error': 'Favorite not found!'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-    def delete(self, request, pk, *args, **kwargs):
-        """Handle DELETE request to remove a favorite."""
-        response_data = self._remove_favorite(pk)
-        return JsonResponse(response_data, status=response_data.get('status', 200))
+
+class RemoveFavoriteByProductView(LoginRequiredMixin, View):
+    def delete(self, request, *args, **kwargs):
+        product_id = request.GET.get('product_id')
+        if not product_id:
+            return JsonResponse({'success': False, 'error': 'Product ID is required'}, status=400)
+        try:
+            favorite = Favorite.objects.get(product_id=product_id, user=request.user)
+            favorite.delete()
+            return JsonResponse({'success': True})
+        except Favorite.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Favorite not found!'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class CheckFavoriteView(LoginRequiredMixin, View):
+    def get(self, request, product_id, *args, **kwargs):
+        try:
+            favorite = Favorite.objects.filter(user=request.user, product_id=product_id).first()
+            is_favorite = favorite is not None
+            favorite_id = favorite.id if favorite else None
+            return JsonResponse({'success': True, 'is_favorite': is_favorite, 'favorite_id': favorite_id})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
