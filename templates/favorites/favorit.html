@@ -56,18 +56,17 @@
                                           <small class="text-muted">Added: {{ favorite_item.added_at|date:"M d, Y" }}</small>
                                       </div>
                                       <div class="mt-auto d-grid gap-2">
-                                          <a href="{% url 'product_detail' favorite_item.product.slug %}"
+                                          <a href="{% url 'product_detail' favorite_item.product.id %}"
                                              class="btn btn-outline-primary btn-sm rounded-pill py-2">
                                               <i class="bi bi-info-circle me-1"></i> View Details
                                           </a>
                                           {% if favorite_item.product.stock > 0 %}
-                                              <button hx-post="/cart/add/"
-                                                    hx-target="#cart-count"
-                                                    hx-swap="outerHTML"
-                                                    class="btn btn-success btn-sm rounded-pill py-2 animate__animated animate__pulse animate__infinite animate__delay-1s"
-                                                    data-product-id="{{ best_selling.id }}">
-                                                <i class="bi bi-bag-plus me-1"></i> Add to Cart
-                                            </button>
+                                              <button hx-post=""
+                                                      hx-target="#cart-count"
+                                                      hx-swap="outerHTML"
+                                                      class="btn btn-success btn-sm rounded-pill py-2 animate__animated animate__pulse animate__infinite animate__delay-1s">
+                                                  <i class="bi bi-bag-plus me-1"></i> Add to Cart
+                                              </button>
                                           {% else %}
                                               <button class="btn btn-secondary btn-sm rounded-pill py-2" disabled>
                                                   <i class="bi bi-x-octagon me-1"></i> Not Available
@@ -115,4 +114,4 @@
           animation-duration: 0.8s;
       }
   </style>
-  {% endblock %}ck %}
+  {% endblock %}
